@@ -1,72 +1,127 @@
 import instaloader
 import os
 import shutil
-from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
+import time
+import subprocess
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler, CallbackQueryHandler
 
-# ✅ FIXED TOKEN
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 L = instaloader.Instaloader(download_videos=True, save_metadata=False)
 
+# 🔐 Instagram login (optional but recommended)
+USERNAME = os.getenv("IG_USERNAME")
+PASSWORD = os.getenv("IG_PASSWORD")
+
+if USERNAME and PASSWORD:
+    try:
+        L.login(USERNAME, PASSWORD)
+        print("Instagram login successful")
+    except Exception as e:
+        print("Login failed:", e)
+
+# 🟢 Start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send Instagram Reel/Post link")
 
-async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# 🔘 Buttons
+def get_buttons(url):
+    keyboard = [
+        [InlineKeyboardButton("📥 Download", callback_data=f"dl|{url}")],
+        [InlineKeyboardButton("🎵 Audio", callback_data=f"audio|{url}")],
+        [InlineKeyboardButton("📄 Caption", callback_data=f"caption|{url}")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+# 📩 Handle link
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    await update.message.reply_text("Downloading...")
+    if "instagram.com" not in url:
+        await update.message.reply_text("Invalid link ❌")
+        return
+
+    await update.message.reply_text("Choose option 👇", reply_markup=get_buttons(url))
+
+# 🔁 Retry fetch
+def get_post(shortcode, retries=3):
+    for i in range(retries):
+        try:
+            return instaloader.Post.from_shortcode(L.context, shortcode)
+        except:
+            time.sleep(5)
+    return None
+
+# 🎯 Button actions
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    action, url = query.data.split("|")
+    shortcode = url.split("/")[-2]
+
+    await query.message.reply_text("Processing... ⏳")
 
     try:
-        # 🧹 Purana data delete
+        # साफ folder
         if os.path.exists("downloads"):
             shutil.rmtree("downloads")
         os.makedirs("downloads")
 
-        shortcode = url.split("/")[-2]
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        post = get_post(shortcode)
 
-        # Caption
+        if not post:
+            await query.message.reply_text("Failed. Try later 🚫")
+            return
+
         caption = post.caption if post.caption else "No caption"
 
-        # Download post
+        # 📥 Download
         L.download_post(post, target="downloads")
+        time.sleep(3)
 
-        # 📄 Caption file save
-        caption_file = "downloads/caption.txt"
-        with open(caption_file, "w", encoding="utf-8") as f:
-            f.write(caption)
+        video_path = None
 
-        # 📤 Caption text send
-        await update.message.reply_text("📄 Caption:\n\n" + caption[:4000])
-
-        # 📤 Caption as document
-        await update.message.reply_document(document=open(caption_file, "rb"))
-
-        # 📤 All media send (carousel support)
         for file in os.listdir("downloads"):
-            path = os.path.join("downloads", file)
-
             if file.endswith(".mp4"):
-                # 🎥 Video normal
-                await update.message.reply_video(video=open(path, "rb"))
+                video_path = os.path.join("downloads", file)
 
-                # 📁 Video as file
-                await update.message.reply_document(document=open(path, "rb"))
+        # 📥 DOWNLOAD OPTION
+        if action == "dl":
+            for file in os.listdir("downloads"):
+                path = os.path.join("downloads", file)
 
-            elif file.endswith(".jpg"):
-                # 🖼️ Image normal
-                await update.message.reply_photo(photo=open(path, "rb"))
+                if file.endswith(".mp4"):
+                    await query.message.reply_video(video=open(path, "rb"))
 
-                # 📁 Image as file
-                await update.message.reply_document(document=open(path, "rb"))
+                elif file.endswith(".jpg"):
+                    await query.message.reply_photo(photo=open(path, "rb"))
+
+        # 🎵 AUDIO OPTION
+        elif action == "audio":
+            if video_path:
+                audio_path = "downloads/audio.mp3"
+                subprocess.run([
+                    "ffmpeg", "-i", video_path,
+                    "-q:a", "0", "-map", "a", audio_path
+                ])
+                await query.message.reply_audio(audio=open(audio_path, "rb"))
+            else:
+                await query.message.reply_text("No audio found ❌")
+
+        # 📄 CAPTION OPTION
+        elif action == "caption":
+            await query.message.reply_text("📄 " + caption[:4000])
 
     except Exception as e:
-        await update.message.reply_text("Error: " + str(e))
+        await query.message.reply_text("Error: " + str(e))
 
+# 🤖 App
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_handler(CallbackQueryHandler(button_handler))
 
-print("Bot is running...")
+print("Bot running 🚀")
 app.run_polling()
