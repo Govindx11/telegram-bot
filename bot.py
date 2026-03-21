@@ -2,7 +2,6 @@ import instaloader
 import os
 import shutil
 import time
-import ffmpeg
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 
@@ -71,29 +70,16 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_document(document=open(caption_file, "rb"))
 
         # 🎥 Send media (video/images), multiple slides supported
-        video_path = None
         for file in os.listdir("downloads"):
             path = os.path.join("downloads", file)
 
             if file.endswith(".mp4"):
-                video_path = path
                 await update.message.reply_video(video=open(path, "rb"))
                 await update.message.reply_document(document=open(path, "rb"))
 
             elif file.endswith(".jpg"):
                 await update.message.reply_photo(photo=open(path, "rb"))
                 await update.message.reply_document(document=open(path, "rb"))
-
-        # 🎵 Extract audio if video exists (ffmpeg-python)
-        if video_path:
-            audio_path = "downloads/audio.mp3"
-            (
-                ffmpeg
-                .input(video_path)
-                .output(audio_path, format='mp3', acodec='libmp3lame')
-                .run(overwrite_output=True)
-            )
-            await update.message.reply_audio(audio=open(audio_path, "rb"))
 
     except Exception as e:
         if "metadata" in str(e):
