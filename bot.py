@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 
 # ✅ FIXED TOKEN
-BOT_TOKEN = os.getenv("8232869946:AAFlAHUk94F9z5UbduN5hzztMbl16nTucWk")
+BOT_TOKEN = os.getenv("8140162829:AAHENc2Q7wRsKnT2stdbFGV7i3RJ_Z9qCSk")
 
 L = instaloader.Instaloader(download_videos=True, save_metadata=False)
 
