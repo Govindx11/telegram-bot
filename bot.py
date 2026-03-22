@@ -52,12 +52,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_post(shortcode, retries=5):
     for i in range(retries):
         try:
-            return instaloader.Post.from_shortcode(L.context, shortcode)
+            print(f"Trying {i+1} time...")
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            return post
         except Exception as e:
             print(f"Retry {i+1} failed:", e)
-            time.sleep(8)
+            time.sleep(10)   # delay badha diya
     return None
-
 # Download handler
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("Message received:", update.message.text)
