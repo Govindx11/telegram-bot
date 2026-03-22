@@ -1,32 +1,39 @@
 from flask import Flask
 import threading
 import os
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is running ✅"
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
-threading.Thread(target=run_web).start()
 import instaloader
-import os
 import shutil
 import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 
-# 🔐 Telegram token
+# ------------------- 🌐 FLASK SERVER -------------------
+
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "Bot is running ✅"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host='0.0.0.0', port=port)
+
+threading.Thread(target=run_web, daemon=True).start()
+
+# ------------------- 🤖 TELEGRAM BOT -------------------
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# 📸 Instagram loader
+if not BOT_TOKEN:
+    print("❌ BOT_TOKEN not found!")
+else:
+    print("✅ BOT_TOKEN loaded")
+
+# Instagram loader
 L = instaloader.Instaloader(download_videos=True, save_metadata=False)
 
-# 🔐 Instagram login (optional but recommended)
+# Instagram login (optional)
 USERNAME = os.getenv("IG_USERNAME")
 PASSWORD = os.getenv("IG_PASSWORD")
 
@@ -37,11 +44,11 @@ if USERNAME and PASSWORD:
     except Exception as e:
         print("Instagram login failed:", e)
 
-# 🟢 Start command
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send Instagram Reel/Post link")
 
-# 🔁 Retry fetch
+# Retry fetch
 def get_post(shortcode, retries=3):
     for i in range(retries):
         try:
@@ -50,17 +57,17 @@ def get_post(shortcode, retries=3):
             time.sleep(5)
     return None
 
-# 📥 Download handler
+# Download handler
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     await update.message.reply_text("Downloading...")
 
     try:
-        if not ("instagram.com" in url):
+        if "instagram.com" not in url:
             await update.message.reply_text("Invalid Instagram link ❌")
             return
 
-        # 🧹 Clean folder
+        # Clean folder
         if os.path.exists("downloads"):
             shutil.rmtree("downloads")
         os.makedirs("downloads")
@@ -74,17 +81,18 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         caption = post.caption if post.caption else "No caption"
 
-        # 📥 Download post
+        # Download post
         L.download_post(post, target="downloads")
         time.sleep(2)
 
-        # 📄 Save caption as document
+        # Save caption
         caption_file = "downloads/caption.txt"
         with open(caption_file, "w", encoding="utf-8") as f:
             f.write(caption)
+
         await update.message.reply_document(document=open(caption_file, "rb"))
 
-        # 🎥 Send media (video/images), multiple slides supported
+        # Send media
         for file in os.listdir("downloads"):
             path = os.path.join("downloads", file)
 
@@ -98,14 +106,14 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         if "metadata" in str(e):
-            await update.message.reply_text("Instagram blocked request. Try again later 🚫")
+            await update.message.reply_text("Instagram blocked request 🚫")
         else:
             await update.message.reply_text("Error: " + str(e))
 
-# 🤖 App setup
+# Bot setup
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
 
-print("Bot is running...")
+print("🚀 Bot started...")
 app.run_polling()
