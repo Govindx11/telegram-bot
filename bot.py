@@ -49,12 +49,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Send Instagram Reel/Post link")
 
 # Retry fetch
-def get_post(shortcode, retries=3):
+def get_post(shortcode, retries=5):
     for i in range(retries):
         try:
             return instaloader.Post.from_shortcode(L.context, shortcode)
-        except:
-            time.sleep(5)
+        except Exception as e:
+            print(f"Retry {i+1} failed:", e)
+            time.sleep(8)
     return None
 
 # Download handler
