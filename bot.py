@@ -73,7 +73,7 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
             shutil.rmtree("downloads")
         os.makedirs("downloads")
 
-        shortcode = url.split("/")[-2]
+        shortcode = url.split("?")[0].split("/")[-2]
         post = get_post(shortcode)
 
         if not post:
