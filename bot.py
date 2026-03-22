@@ -60,6 +60,7 @@ def get_post(shortcode, retries=5):
 
 # Download handler
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Message received:", update.message.text)
     url = update.message.text
     await update.message.reply_text("Downloading...")
 
@@ -114,7 +115,7 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Bot setup
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+app.add_handler(MessageHandler(filters.ALL,download))
 
 print("🚀 Bot started...")
 app.run_polling()
